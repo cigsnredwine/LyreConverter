@@ -5,12 +5,12 @@ import { copyFile, mkdir, realpath, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
-import { autoUpdater } from 'electron-updater'
 import { cleanupTempDirectory } from './temp-cleanup.mjs'
 import { FORMAT_SET } from './format-utils.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
+const { autoUpdater } = require('electron-updater')
 const bundledFfmpeg = require('ffmpeg-static')
 const bundledFfprobe = require('ffprobe-static').path
 const isDev = !app.isPackaged
@@ -169,7 +169,7 @@ function broadcastUpdate(status, data = {}) {
 }
 
 function configureUpdates() {
-  if (isDev) return
+  if (isDev || !existsSync(path.join(process.resourcesPath, 'app-update.yml'))) return
   autoUpdater.autoDownload = false
   autoUpdater.on('checking-for-update', () => broadcastUpdate('checking'))
   autoUpdater.on('update-available', info => broadcastUpdate('available', { version: info.version }))
@@ -205,12 +205,12 @@ app.whenReady().then(() => {
   })
   ipcMain.handle('save-output', (_event, payload) => saveOutput(payload))
   ipcMain.handle('check-for-updates', async () => {
-    if (isDev) return { status: 'development' }
+    if (isDev || !existsSync(path.join(process.resourcesPath, 'app-update.yml'))) return { status: 'unconfigured' }
     const result = await autoUpdater.checkForUpdates()
     return { status: result?.updateInfo ? 'checked' : 'unknown', version: result?.updateInfo?.version }
   })
-  ipcMain.handle('download-update', () => autoUpdater.downloadUpdate())
-  ipcMain.handle('install-update', () => { if (!isDev) autoUpdater.quitAndInstall() })
+  ipcMain.handle('download-update', () => existsSync(path.join(process.resourcesPath, 'app-update.yml')) ? autoUpdater.downloadUpdate() : undefined)
+  ipcMain.handle('install-update', () => { if (!isDev && existsSync(path.join(process.resourcesPath, 'app-update.yml'))) autoUpdater.quitAndInstall() })
   ipcMain.handle('cancel-conversion', (_event, jobId) => { if (typeof jobId !== 'string' || !/^[a-f0-9-]{36}$/i.test(jobId)) return false; jobs.get(jobId)?.kill('SIGTERM'); jobs.delete(jobId); return true })
   ipcMain.handle('reveal-file', async (_event, outputPath) => { const safePath = await realpath(outputPath); if (!isInside(safePath, TEMP_OUTPUT_DIRECTORY) && ![...allowedOutputDirectories].some(directory => isInside(safePath, directory))) throw new Error('This file is outside the app workspace.'); return shell.showItemInFolder(safePath) })
   createWindow()

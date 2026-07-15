@@ -20,4 +20,5 @@ secrets.json
 *.log
 .npmrc
 .eslintcache
+.private-documentation.md
 .DS_Store
