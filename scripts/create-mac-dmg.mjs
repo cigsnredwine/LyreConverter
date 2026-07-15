@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, symlink } from 'node:fs/promises'
+import { mkdir, rm, symlink, lstat } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
@@ -16,7 +16,15 @@ const dmgPath = path.join(root, 'release', `${packageJson.build.productName}-${p
 await rm(staging, { recursive: true, force: true })
 await rm(dmgPath, { force: true })
 await mkdir(staging, { recursive: true })
-await cp(appSource, path.join(staging, appName), { recursive: true })
+// `fs.cp` can rewrite framework symlinks as absolute paths on macOS. That
+// makes an app copied out of the DMG point back to the build machine. `ditto`
+// is Apple's bundle-aware copier and preserves Electron's relative links.
+await exec('ditto', [appSource, path.join(staging, appName)])
+const frameworkLink = path.join(staging, appName, 'Contents', 'Frameworks', 'Electron Framework.framework', 'Resources')
+const frameworkStat = await lstat(frameworkLink)
+if (!frameworkStat.isSymbolicLink()) {
+  throw new Error('Electron Framework Resources link was not preserved while staging the DMG')
+}
 await symlink('/Applications', path.join(staging, 'Applications'))
 await exec('hdiutil', ['create', '-volname', packageJson.build.productName, '-srcfolder', staging, '-ov', '-format', 'UDZO', dmgPath])
 await rm(staging, { recursive: true, force: true })

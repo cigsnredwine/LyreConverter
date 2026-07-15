@@ -20,9 +20,26 @@ const TEMP_OUTPUT_DIRECTORY = path.join(app.getPath('temp'), 'Lyre Converter')
 const MAX_INPUT_BYTES = 50 * 1024 * 1024 * 1024
 const MAX_OUTPUT_BYTES = 100 * 1024 * 1024 * 1024
 
+function executablePath(candidate) {
+  if (!candidate) return undefined
+  // Native binaries are unpacked from app.asar by electron-builder. The
+  // packages still return their original app.asar path, which cannot be
+  // passed to spawn on a packaged installation.
+  const unpacked = candidate.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)
+  if (existsSync(unpacked)) return unpacked
+  if (existsSync(candidate)) return candidate
+  return undefined
+}
+
 function command(name) {
-  if (name === 'ffmpeg' && bundledFfmpeg && existsSync(bundledFfmpeg)) return bundledFfmpeg
-  if (name === 'ffprobe' && bundledFfprobe && existsSync(bundledFfprobe)) return bundledFfprobe
+  if (name === 'ffmpeg') {
+    const executable = executablePath(bundledFfmpeg)
+    if (executable) return executable
+  }
+  if (name === 'ffprobe') {
+    const executable = executablePath(bundledFfprobe)
+    if (executable) return executable
+  }
   if (!isDev) throw new Error(`Bundled ${name} is unavailable. Reinstall the application.`)
   const candidates = [
     path.join(process.resourcesPath, 'bin', name),
