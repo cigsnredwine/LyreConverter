@@ -1,0 +1,23 @@
+node_modules
+dist
+.DS_Store
+
+# Local secrets and signing credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+AuthKey_*.p8
+credentials.json
+secrets.json
+
+# Logs and local tooling state
+*.log
+.npmrc
+.eslintcache
+.DS_Store
