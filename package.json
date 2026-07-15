@@ -10,6 +10,9 @@
     "test": "node --test tests/*.test.mjs",
     "build": "tsc -b && vite build",
     "build:desktop": "npm run build && electron-builder --dir",
+    "create:dmg": "node scripts/create-mac-dmg.mjs",
+    "build:windows": "npm run build && electron-builder --win nsis --publish never",
+    "build:linux": "npm run build && electron-builder --linux AppImage --publish never",
     "build:release": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
@@ -45,6 +48,7 @@
     ],
     "mac": {
       "category": "public.app-category.video",
+      "target": ["dmg", "zip"],
       "files": [
         "!node_modules/ffprobe-static/bin/linux/**",
         "!node_modules/ffprobe-static/bin/win32/**",
