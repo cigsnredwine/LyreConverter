@@ -55,7 +55,7 @@ To create a local packaged build for the current operating system:
 npm run build:desktop
 ```
 
-The packaged app is written to `dist/`.
+The packaged app is written to `release/`.
 
 ## Privacy
 
