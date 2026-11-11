@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AudioLines, Check, ChevronDown, Clock3, Download, FileAudio, FileVideo, Pause, Play, Plus, RotateCcw, Search, ShieldCheck, Trash2, UploadCloud, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Download, FileAudio, FileVideo, ListMusic, Pause, Play, RotateCcw, Search, ShieldCheck, Trash2, UploadCloud, X } from 'lucide-react'
 import { convertVideo } from './converter'
 import type { MediaType, VideoItem } from './types'
 
@@ -28,25 +28,64 @@ function inspectMedia(file: File): Promise<Partial<VideoItem>> {
 }
 
 function Logo() {
-  return <div className="logo"><img src="./assets/lyre-converter-logo-transparent.png" alt="" /><span>Lyre Converter</span></div>
+  return <div className="logo"><img src="./assets/lyre-converter-logo-transparent.png" alt="" /><span>LyreConverter</span></div>
 }
 
 function Stepper({ step }: { step: number }) {
-  return <div className="stepper" aria-label="Conversion progress">
-    {[['01', 'Add files'], ['02', 'Choose format'], ['03', 'Convert']].map(([number, label], index) => <div className={`step ${step > index + 1 ? 'complete' : step === index + 1 ? 'active' : ''}`} key={label}><span>{step > index + 1 ? <Check size={14} /> : number}</span><strong>{label}</strong>{index < 2 && <i />}</div>)}
-  </div>
+  return <ol className="stepper" aria-label="Conversion progress">
+    {['Add files', 'Choose format', 'Convert'].map((label, index) => (
+      <li key={label} className={step > index + 1 ? 'complete' : ''} aria-current={step === index + 1 ? 'step' : undefined}>
+        <span>{step > index + 1 ? <Check size={14} /> : index + 1}</span>{label}
+      </li>
+    ))}
+  </ol>
 }
 
-function FormatPicker({ value, onChange }: { value: string, onChange: (format: string) => void }) {
+function FormatPicker({ value, onChange, disabled, audioOnly }: { value: string, onChange: (format: string) => void, disabled: boolean, audioOnly: boolean }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const matches = (format: string) => `${format} ${formatName(format)}`.toLowerCase().includes(query.toLowerCase())
-  return <div className="format-picker">
-    <button className="format-trigger" onClick={() => setOpen(current => !current)}><span><b>{formatLabel(value)}</b> {formatName(value).replace(`${formatLabel(value)} `, '')}</span><ChevronDown size={16} /></button>
-    {open && <div className="format-menu">
-      <div className="format-search"><Search size={15} /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search formats" /></div>
-      <small>VIDEO</small>{VIDEO_FORMATS.filter(matches).map(format => <button key={format} onClick={() => { onChange(format); setOpen(false) }} className={value === format ? 'selected' : ''}><b>{formatLabel(format)}</b><span>{formatName(format).replace(`${formatLabel(format)} `, '')}</span>{value === format && <Check size={14} />}</button>)}
-      <small>AUDIO</small>{AUDIO_FORMATS.filter(matches).map(format => <button key={format} onClick={() => { onChange(format); setOpen(false) }} className={value === format ? 'selected' : ''}><b>{formatLabel(format)}</b><span>{formatName(format).replace(`${formatLabel(format)} `, '')}</span>{value === format && <Check size={14} />}</button>)}
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const groups = [
+    { label: 'Video', formats: audioOnly ? [] : VIDEO_FORMATS },
+    { label: 'Audio', formats: AUDIO_FORMATS },
+  ].map(group => ({
+    ...group,
+    formats: group.formats.filter(format => formatName(format).toLowerCase().includes(query.trim().toLowerCase())),
+  })).filter(group => group.formats.length)
+
+  useEffect(() => {
+    if (!open) return
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [open])
+
+  return <div className="format-picker" ref={rootRef} onBlur={event => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+  }} onKeyDown={event => {
+    if (event.key === 'Escape' && open) {
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+  }}>
+    <button className="format-trigger" ref={triggerRef} disabled={disabled} aria-label={`Convert all to ${formatLabel(value)}`} aria-expanded={open && !disabled} onClick={() => {
+      setQuery('')
+      setOpen(current => !current)
+    }}>{formatLabel(value)}<ChevronDown size={14} /></button>
+    {open && !disabled && <div className="format-menu">
+      <label className="format-search"><Search size={15} /><input autoFocus aria-label="Search formats" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search formats" /></label>
+      {groups.map(group => <div className="format-group" key={group.label}>
+        <small>{group.label}</small>
+        {group.formats.map(format => <button key={format} aria-pressed={value === format} onClick={() => {
+          onChange(format)
+          setOpen(false)
+          triggerRef.current?.focus()
+        }}><span>{formatName(format)}</span>{value === format && <Check size={14} />}</button>)}
+      </div>)}
+      {!groups.length && <p className="format-empty">No matching formats</p>}
     </div>}
   </div>
 }
@@ -63,13 +102,12 @@ function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   const pausedRef = useRef(false)
   const desktop = typeof window !== 'undefined' ? window.desktop : undefined
-  const totalBytes = useMemo(() => items.reduce((sum, item) => sum + item.size, 0), [items])
   const completed = items.filter(item => item.status === 'done').length
   const ready = items.filter(item => item.status === 'ready' || item.status === 'error').length
   const progress = items.length ? Math.round(items.reduce((sum, item) => sum + (item.status === 'done' ? 100 : item.progress), 0) / items.length) : 0
   const step = converting || completed > 0 ? 3 : items.length ? 2 : 1
-  const queueMediaType = items.length && items.every(item => item.mediaType === 'audio') ? 'audio' : items.length && items.every(item => item.mediaType === 'video') ? 'video' : 'mixed'
-  const effectiveDefaultFormat = queueMediaType === 'audio' && !AUDIO_FORMATS.includes(defaultFormat) ? 'mp3' : queueMediaType === 'video' && !VIDEO_FORMATS.includes(defaultFormat) ? 'mp4' : defaultFormat
+  const audioOnly = items.length > 0 && items.every(item => item.mediaType === 'audio')
+  const effectiveDefaultFormat = audioOnly && !AUDIO_FORMATS.includes(defaultFormat) ? 'mp3' : defaultFormat
 
   useEffect(() => {
     if (!desktop) return
@@ -89,7 +127,7 @@ function App() {
       const mediaType: MediaType = isAudioFile(file) ? 'audio' : 'video'
       const inputPath = desktop?.getPathForFile(file)
       const metadata = inputPath && desktop ? await desktop.probeFile(inputPath).catch(() => ({})) : await inspectMedia(file)
-      const format = mediaType === 'audio' && defaultFormat === 'mp4' ? 'mp3' : defaultFormat
+      const format = formatsFor(mediaType).includes(defaultFormat) ? defaultFormat : 'mp3'
       return { id: crypto.randomUUID(), file, name: file.name.replace(/\.[^/.]+$/, ''), extension, inputPath, size: file.size, outputFormat: format, status: 'ready' as const, progress: 0, ...metadata, mediaType }
     }))
     setItems(current => [...current, ...created].slice(0, 50))
@@ -99,7 +137,7 @@ function App() {
 
   async function startQueue() {
     if (!ready || converting) return
-    if (!desktop) return setNotice('Lyre Converter must be opened as a desktop app.')
+    if (!desktop) return setNotice('LyreConverter must be opened as a desktop app.')
     const directory = await desktop.selectOutputDirectory()
     if (!directory) return
     setDestinationDir(directory); setConverting(true); setPaused(false); pausedRef.current = false; setNotice('')
@@ -131,39 +169,89 @@ function App() {
 
   function applyAll(format: string) {
     setDefaultFormat(format)
-    setItems(current => current.map(item => item.status === 'done' ? item : { ...item, outputFormat: formatsFor(item.mediaType).includes(format) ? format : item.mediaType === 'audio' ? 'mp3' : format, status: 'ready' }))
+    setItems(current => current.map(item => item.status === 'done' ? item : { ...item, outputFormat: formatsFor(item.mediaType).includes(format) ? format : 'mp3', status: 'ready' }))
   }
 
   return <div className="app-shell">
-    <header><Logo /><div className="header-note"><ShieldCheck size={15} /> Private by default</div></header>
+    <header className="topbar"><Logo /><div className="header-note"><ShieldCheck size={16} /> On-device processing</div></header>
     <main>
-      {update.status === 'available' && <div className="update-banner">Lyre Converter {update.version} is available.<button onClick={() => { setUpdate(current => ({ ...current, status: 'downloading', percent: 0 })); desktop?.downloadUpdate().catch(() => setUpdate({ status: 'error', message: 'Update download failed.' })) }}>Download update</button></div>}
-      {update.status === 'downloading' && <div className="update-banner">Downloading update… {update.percent ?? 0}%</div>}
-      {update.status === 'downloaded' && <div className="update-banner">Update ready. Restart Lyre Converter to install it.<button onClick={() => desktop?.installUpdate()}>Restart to update</button></div>}
-      <section className="hero"><h1>Convert media <em>without the upload.</em></h1><p>Fast, private conversions powered by FFmpeg on your computer.</p><Stepper step={step} /></section>
+      {update.status === 'available' && <div className="update-banner">LyreConverter {update.version} is available.<button className="secondary" onClick={() => { setUpdate(current => ({ ...current, status: 'downloading', percent: 0 })); desktop?.downloadUpdate().catch(() => setUpdate({ status: 'error', message: 'Update download failed.' })) }}>Download update</button></div>}
+      {update.status === 'downloading' && <div className="update-banner" role="status">Downloading update… {update.percent ?? 0}%</div>}
+      {update.status === 'downloaded' && <div className="update-banner">Update ready.<button className="secondary" onClick={() => desktop?.installUpdate()}>Restart to update</button></div>}
 
-      <section className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer.files) }}>
-        <input ref={inputRef} type="file" accept="video/*,audio/*,.mkv,.avi,.m4v,.ogv,.mts,.m2ts,.mp3,.wav,.m4a,.flac,.aac,.ogg,.opus,.wma,.aiff" multiple hidden onChange={event => event.target.files && addFiles(event.target.files)} />
-        <div className="upload-icon"><UploadCloud size={28} /></div><div className="drop-copy"><strong>Drop videos or audio here</strong><span>Up to 50 files · MP4, MOV, MKV, WebM, MP3, WAV and more</span></div><button className="primary compact" onClick={() => inputRef.current?.click()}><Plus size={17} /> Choose files</button>
-        <div className="privacy-line"><ShieldCheck size={14} /> Files stay on this computer. Nothing is uploaded.</div>
+      <section className="hero">
+        <div className="hero-copy">
+          <h1>Media <em>converter.</em></h1>
+          <p>Convert video and audio locally.</p>
+          <Stepper step={step} />
+        </div>
+        <img className="hero-art" src="./assets/crimson-vinyl.jpg" alt="" />
       </section>
 
-      {notice && <div className="notice"><span>{notice}</span><button onClick={() => setNotice('')}><X size={15} /></button></div>}
+      {notice && <div className="notice" role="status"><span>{notice}</span><button className="icon-button" aria-label="Dismiss notice" onClick={() => setNotice('')}><X size={16} /></button></div>}
 
-      <section className="workspace">
-        <div className="queue-head"><div><h2>Conversion queue <span>{items.length}/50</span></h2><p>{items.length ? `${bytes(totalBytes)} total · ${queueMediaType === 'mixed' ? 'Mixed media formats' : queueMediaType === 'audio' ? 'Audio queue' : 'Video queue'} · Best quality is selected automatically` : 'Add media to start building your queue'}</p></div>{items.length > 0 && <div className="queue-tools"><label>Convert all to</label><FormatPicker value={effectiveDefaultFormat} onChange={applyAll} /><button className="text-button danger" onClick={() => setItems([])}><Trash2 size={15} /> Clear</button></div>}</div>
+      <div className="workbench">
+        <section className="panel intake" aria-labelledby="intake-title">
+          <div className="panel-heading"><h2 id="intake-title">Add media</h2></div>
+          <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true) }} onDragLeave={event => {
+            if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(false)
+          }} onDrop={event => { event.preventDefault(); setDragging(false); void addFiles(event.dataTransfer.files) }}>
+            <input ref={inputRef} type="file" accept="video/*,audio/*,.mkv,.avi,.m4v,.ogv,.mts,.m2ts,.mp3,.wav,.m4a,.flac,.aac,.ogg,.opus,.wma,.aiff" multiple hidden onChange={event => {
+              if (event.target.files?.length) void addFiles(event.target.files)
+              event.target.value = ''
+            }} />
+            <UploadCloud className="upload-icon" size={34} strokeWidth={1.5} />
+            <strong>{dragging ? 'Release to add files' : 'Drop video or audio here'}</strong>
+            <button className="primary" onClick={() => inputRef.current?.click()}>Choose files</button>
+          </div>
+        </section>
 
-        {items.length === 0 ? <div className="empty-state"><div className="empty-art"><FileVideo size={34} /><AudioLines size={19} /><span className="orbit one" /><span className="orbit two" /></div><h3>Your queue is ready</h3><p>Drop in video or audio files above and choose where the finished files should go.</p></div> : <div className="queue-list">{items.map((item, index) => <article className="video-row" key={item.id}>
-          <div className="file-index">{String(index + 1).padStart(2, '0')}</div><div className={`file-icon ${item.mediaType}`} aria-label={item.mediaType}>{item.mediaType === 'audio' ? <FileAudio size={21} /> : <FileVideo size={22} />}</div>
-          <div className="file-info"><strong title={item.name}>{item.name}</strong><span>{formatLabel(item.extension)} · {item.mediaType === 'video' && item.width ? `${item.width}×${item.height} · ` : ''}{time(item.duration)} · {bytes(item.size)}</span>{item.error && <small className="error">{item.error}</small>}</div>
-          <div className="conversion-arrow"><span>{formatLabel(item.extension)}</span><i>→</i></div><div className="row-select"><small>OUTPUT</small><select disabled={item.status === 'converting'} value={item.outputFormat} onChange={event => updateItem(item.id, { outputFormat: event.target.value, status: 'ready' })}>{formatsFor(item.mediaType).map(format => <option key={format} value={format}>{formatLabel(format)}</option>)}</select><ChevronDown size={14} /></div>
-          <div className={`status ${item.status}`}>{item.status === 'ready' && <><span className="dot" /> Queued</>}{item.status === 'converting' && <div className="progress-wrap"><span>{item.progress === 0 ? 'Preparing…' : `Converting ${item.progress}%`}</span><i><b style={{ width: `${item.progress}%` }} /></i></div>}{item.status === 'done' && <button onClick={() => item.savedPath && desktop ? desktop.revealFile(item.savedPath) : download(item)}><Download size={16} /> {item.savedPath ? 'Show file' : 'Save file'}</button>}{item.status === 'error' && <button className="retry" onClick={() => updateItem(item.id, { status: 'ready', progress: 0, error: undefined })}><RotateCcw size={15} /> Retry</button>}</div>
-          <button className="remove" disabled={item.status === 'converting'} onClick={() => setItems(current => current.filter(value => value.id !== item.id))}><X size={17} /></button>
-        </article>)}</div>}
+        <section className="panel workspace" aria-labelledby="queue-title">
+          <div className="panel-heading queue-head">
+            <h2 id="queue-title">Conversion queue <span>{items.length} / 50</span></h2>
+            {items.length > 0 && <div className="queue-tools">
+              <span>Convert all to</span>
+              <FormatPicker value={effectiveDefaultFormat} onChange={applyAll} disabled={converting} audioOnly={audioOnly} />
+              <button className="icon-button danger" aria-label="Clear queue" title="Clear queue" disabled={converting} onClick={() => setItems([])}><Trash2 size={16} /></button>
+            </div>}
+          </div>
 
-        {items.length > 0 && <div className="action-bar"><div className="queue-summary"><span><Clock3 size={15} /> {converting ? `${progress}% complete` : completed === items.length ? 'All conversions complete' : `${ready} ready to convert`}</span><small>{destinationDir ? `Saving to ${destinationDir.split('/').pop()}` : 'Choose an output folder when you start'}</small></div><div className="action-buttons">{completed > 0 && <button className="download-all" disabled={!items.some(item => item.status === 'done' && !item.savedPath)} onClick={downloadAll}><Download size={17} /> Save all</button>}{converting ? <button className="primary" onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current) }}>{paused ? <Play size={18} /> : <Pause size={18} />}{paused ? 'Resume queue' : 'Pause queue'}</button> : <button className="primary" disabled={!ready} onClick={startQueue}><Play size={18} fill="currentColor" /> Convert {ready || items.length} {ready === 1 ? 'item' : 'items'}</button>}</div></div>}
-      </section>
-      <section className="feature-strip"><div><span><ShieldCheck size={18} /></span><strong>Private by default</strong><p>Everything runs locally with no upload or account.</p></div><div><span>✦</span><strong>Best quality automatic</strong><p>Smart presets keep output quality high without extra knobs.</p></div><div><span><AudioLines size={18} /></span><strong>Video + audio</strong><p>Convert between popular media formats in one queue.</p></div></section>
+          {items.length === 0 ? <div className="empty-state">
+            <div className="file-icon"><ListMusic size={24} strokeWidth={1.5} /></div>
+            <h3>Queue is empty</h3>
+            <p>Add files to choose their output formats.</p>
+          </div> : <div className="queue-list">{items.map(item => <article className="video-row" key={item.id}>
+            <div className="file-icon" aria-hidden="true">{item.mediaType === 'audio' ? <FileAudio size={20} /> : <FileVideo size={20} />}</div>
+            <div className="file-info">
+              <strong title={item.name}>{item.name}.{item.extension}</strong>
+              <span>{formatLabel(item.extension)} · {item.mediaType === 'video' && item.width ? `${item.width}×${item.height} · ` : ''}{time(item.duration)} · {bytes(item.size)}</span>
+              {item.error && <small className="error">{item.error}</small>}
+            </div>
+            <div className="row-select">
+              <select aria-label={`Output format for ${item.name}`} disabled={converting} value={item.outputFormat} onChange={event => updateItem(item.id, { outputFormat: event.target.value, status: 'ready' })}>{formatsFor(item.mediaType).map(format => <option key={format} value={format}>{formatLabel(format)}</option>)}</select>
+              <ChevronDown size={14} aria-hidden="true" />
+            </div>
+            <div className={`status ${item.status}`}>
+              {item.status === 'ready' && <span className="queued-label">Queued</span>}
+              {item.status === 'converting' && <div className="progress-wrap"><span>{item.progress === 0 ? 'Preparing…' : `${item.progress}%`}</span><progress aria-label={`Converting ${item.name}`} max={100} value={item.progress} /></div>}
+              {item.status === 'done' && <button className="secondary" onClick={() => item.savedPath && desktop ? desktop.revealFile(item.savedPath) : download(item)}><Download size={14} /> {item.savedPath ? 'Show file' : 'Save file'}</button>}
+              {item.status === 'error' && <button className="secondary retry" disabled={converting} onClick={() => updateItem(item.id, { status: 'ready', progress: 0, error: undefined })}><RotateCcw size={14} /> Retry</button>}
+            </div>
+            <button className="icon-button danger remove" aria-label={`Remove ${item.name}`} disabled={converting} onClick={() => setItems(current => current.filter(value => value.id !== item.id))}><X size={17} /></button>
+          </article>)}</div>}
+        </section>
+      </div>
+
+      <footer className="action-bar">
+        <div className="queue-summary" role="status">
+          <strong>{converting ? `${paused ? 'Queue paused · ' : ''}${progress}% complete` : !items.length ? 'No files queued' : completed === items.length ? 'All conversions complete' : `${ready} ${ready === 1 ? 'file' : 'files'} ready`}</strong>
+          <small>{destinationDir && items.length ? `Output folder · ${destinationDir.split(/[\\/]/).pop()}` : 'Choose an output folder when you start'}</small>
+        </div>
+        <div className="action-buttons">
+          {completed > 0 && <button className="secondary" disabled={!items.some(item => item.status === 'done' && !item.savedPath)} onClick={downloadAll}><Download size={16} /> Save all</button>}
+          {converting ? <button className="primary" onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current) }}>{paused ? <Play size={17} /> : <Pause size={17} />}{paused ? 'Resume queue' : 'Pause queue'}</button> : <button className="primary" disabled={!ready} onClick={startQueue}><Play size={16} fill="currentColor" /> {ready ? `Convert ${ready} ${ready === 1 ? 'file' : 'files'}` : 'Convert'}</button>}
+        </div>
+      </footer>
     </main>
   </div>
 }

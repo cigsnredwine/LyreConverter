@@ -1,6 +1,6 @@
-# Lyre Converter
+# LyreConverter
 
-Lyre Converter is a private, local desktop app for converting video and audio files without uploading them to a server. It supports batch queues of up to 50 files and uses bundled FFmpeg processing.
+LyreConverter is a private, local desktop app for converting video and audio files without uploading them to a server. It supports batch queues of up to 50 files and uses bundled FFmpeg processing.
 
 ## Install from a release
 
@@ -12,7 +12,7 @@ Download the release for your operating system from the project's GitHub Release
    - Apple Silicon: `arm64`
    - Intel: `x64`
    - Universal: works on both
-2. Open the DMG and drag **Lyre Converter** to Applications.
+2. Open the DMG and drag **LyreConverter** to Applications.
 3. Open it from Applications.
 
 Unsigned builds may require choosing **Open Anyway** in **System Settings → Privacy & Security**.
@@ -21,7 +21,7 @@ Unsigned builds may require choosing **Open Anyway** in **System Settings → Pr
 
 1. Download the Windows `.exe` installer.
 2. Run the installer and follow the prompts.
-3. Launch **Lyre Converter** from the Start menu.
+3. Launch **LyreConverter** from the Start menu.
 
 Windows may show a SmartScreen warning for unsigned builds. Only install releases downloaded from the official repository.
 
@@ -59,4 +59,4 @@ The packaged app is written to `release/`.
 
 ## Privacy
 
-Files are processed locally on your computer. Lyre Converter does not upload media or require an account.
+Files are processed locally on your computer. LyreConverter does not upload media or require an account.

@@ -1,6 +1,6 @@
 export async function convertVideo(file: File, format: string, duration: number | undefined, onProgress: (p: number) => void) {
   if (!window.desktop) {
-    throw new Error('Lyre Converter must be opened as a desktop app.')
+    throw new Error('LyreConverter must be opened as a desktop app.')
   }
   const jobId = crypto.randomUUID()
   const inputPath = window.desktop.getPathForFile(file)

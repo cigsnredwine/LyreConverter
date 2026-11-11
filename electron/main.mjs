@@ -198,7 +198,7 @@ function configureUpdates() {
 }
 
 function createWindow() {
-  const window = new BrowserWindow({ width: 1440, height: 980, minWidth: 980, minHeight: 720, backgroundColor: '#0b1013', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, allowRunningInsecureContent: false } })
+  const window = new BrowserWindow({ width: 1440, height: 980, minWidth: 980, minHeight: 720, backgroundColor: '#111214', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, allowRunningInsecureContent: false } })
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
     const allowed = isDev ? url.startsWith('http://127.0.0.1:5173') : url.startsWith('file://')

@@ -1,7 +1,7 @@
 {
   "name": "lyre-converter",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
@@ -36,7 +36,7 @@
   },
   "build": {
     "appId": "com.lyre.converter",
-    "productName": "Lyre Converter",
+    "productName": "LyreConverter",
     "icon": "build/icons/lyre-converter",
     "directories": {
       "output": "release"
@@ -48,7 +48,10 @@
     ],
     "mac": {
       "category": "public.app-category.video",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "files": [
         "!node_modules/ffprobe-static/bin/linux/**",
         "!node_modules/ffprobe-static/bin/win32/**",
